@@ -1,0 +1,126 @@
+(require 'seq)
+(require 'subr-x)
+
+(defun read-file (filename)
+  (with-temp-buffer
+    (insert-file-contents filename)
+    (buffer-string)))
+
+(setq sample-input (butlast (split-string (read-file "sample.txt") "\n")))
+(setq sample-input2 (butlast (split-string (read-file "sample2.txt") "\n")))
+(setq sample-input3 (butlast (split-string (read-file "sample3.txt") "\n")))
+(setq sample-input4 (butlast (split-string (read-file "sample4.txt") "\n")))
+(setq sample-input5 (butlast (split-string (read-file "sample5.txt") "\n")))
+(setq input (butlast (split-string (read-file "input.txt") "\n")))
+
+(defun build-map (input)
+  (let* ((cl (length (nth 0 input)))
+	 (rl (length input))
+	 (mp (make-hash-table :test 'equal))
+	 (s-pos nil))
+    (dotimes (i rl)
+      (dotimes (j cl)
+	(let* ((row (nth i input))
+	       (el (substring row j (+ j 1))))
+	  (when (string= el "S")
+	    (setq s-pos (list j i)))
+	  (puthash (list j i) el mp))))
+    (list s-pos mp)))
+
+(setq dirs (list '(-1 0) '(1 0) '(0 1) '(0 -1)))
+
+(setq dir2pipes #s(hash-table test equal data (
+						 (0 1) (list "|" "L" "J" "S")
+						 (0 -1) (list "|" "7" "F" "S")
+						 (-1 0) (list "-" "L" "F" "S")
+						 (1 0) (list "-" "J" "7" "S"))))
+
+(setq pipe2dirs #s(hash-table test equal data (
+					      "S" (list (0 -1) (0 1) (-1 0) (1 0))
+					      "|" (list (0 -1) (0 1))
+					      "-" (list (-1 0) (1 0))
+					      "L" (list (0 -1) (1 0))
+					      "J" (list (0 -1) (-1 0))
+					      "7" (list (-1 0) (0 1))
+					      "F" (list (1 0) (0 1)))))
+
+(setq opposite-dirs #s(hash-table test equal data ((0 -1) (0 1)
+					           (0 1) (0 -1)
+					           (1 0) (-1 0)
+						   (-1 0) (1 0))))
+
+(defun around (from mp)
+  (mapcar (lambda (dir)
+	    (let* ((dx (nth 0 dir))
+		   (dy (nth 1 dir))
+		   (x (nth 0 from))
+		   (y (nth 1 from))
+		   (next (list (+ x dx) (+ y dy))))
+	      (list dir (gethash next mp)))) dirs))
+
+(defun filter-possible (prev-dir coords m vars)
+  (let* ((pipe (gethash coords m))
+	 (possible-dirs (remove prev-dir (gethash pipe pipe2dirs))))
+    (seq-find (lambda (el)
+		  (let* ((dir (nth 0 el))
+			 (p (nth 1 el))
+			 (possible-connections (gethash dir dir2pipes)))
+		    (and (seq-position possible-dirs dir) (seq-position possible-connections p))))
+		vars)))
+
+(defun get-next-pos (pos next-dir)
+  (list (+ (nth 0 pos) (nth 0 next-dir)) (+ (nth 1 pos) (nth 1 next-dir))))
+
+(defun solve1 (input)
+  (let* ((mn (build-map input))
+	 (pos (nth 0 mn))
+	 (m (nth 1 mn))
+         (stp 1)
+         (dir (list 0 1))
+         (nm (make-hash-table :test 'equal))
+         (steps (catch 'break
+                (while t
+         	      (let* ((next (filter-possible (gethash dir opposite-dirs) pos m (around pos m)))
+         		     (next-dir (nth 0 next))
+         		     (next-pipe (nth 1 next))
+         		     (next-pos (get-next-pos pos next-dir)))
+         		(puthash next-pos t nm)
+         		(when (string= next-pipe "S")
+         		  (throw 'break (/ stp 2)))
+         		(setq stp (+ stp 1))
+         		(setq dir next-dir)
+         		(setq pos next-pos))))))
+    (list steps nm)))
+
+(defun solve2 (input)
+  (setq tiles 0)
+
+  (let* ((cl (length (nth 0 input)))
+	 (rl (length input))
+	 (m (nth 1 (build-map input)))
+	 (nm (nth 1 (solve1 input))))
+    (dotimes (i rl)
+      (setq in nil)
+      (setq corner nil)
+      (dotimes (j cl)
+	(let* ((been (gethash (list j i) nm))
+	       (el (gethash (list j i) m)))
+	  (if been
+	    (progn
+	      (when (string= el "S")
+		(setq el "|"))
+	      (when (not (string= el "-"))
+		(if (string= el "|")
+		  (setq in (not in)))
+		(if (or (string= el "L") (string= el "F"))
+		  (setq corner el))
+		(if (and (string= el "7") (string= corner "L"))
+		  (setq in (not in)))
+		(if (and (string= el "J") (string= corner "F"))
+		  (setq in (not in)))))
+	    (if in
+	      (setq tiles (+ tiles 1))))))))
+  tiles)
+
+(message "%s" (nth 0 (solve1 input))) ; 6701
+(message "%s" (solve2 input)) ; 303
