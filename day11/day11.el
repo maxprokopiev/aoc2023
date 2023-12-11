@@ -1,0 +1,101 @@
+(require 'seq)
+(require 'subr-x)
+
+(defun read-file (filename)
+  (with-temp-buffer
+    (insert-file-contents filename)
+    (buffer-string)))
+
+(setq sample-input (mapcar (lambda (line) (split-string line "" t)) (butlast (split-string (read-file "sample.txt") "\n"))))
+(setq input (mapcar (lambda (line) (split-string line "" t)) (butlast (split-string (read-file "input.txt") "\n"))))
+
+(defun print-list (input)
+  (let* ((row-count (length input))
+	 (column-count (length (nth 0 input))))
+    (dotimes (row row-count)
+      (dotimes (column column-count)
+	(let ((el (nth column (nth row input))))
+	  (princ (format "%s " el))))
+      (princ "\n"))))
+
+(defun print-array (input)
+  (let* ((row-count (length input))
+	 (column-count (length (aref input 0))))
+    (dotimes (row row-count)
+      (dotimes (column column-count)
+	(let ((el (aref (aref input row) column)))
+	  (princ (format "%s " el))))
+      (princ "\n"))))
+
+(defun convert-to-array (input)
+  (vconcat (mapcar (lambda (line) (vconcat line nil)) input) nil))
+
+(defun make-matrix (row col val)
+  (let ((result (make-vector row val)))
+    (dotimes (i row)
+      (aset result i (make-vector col val)))
+    result))
+
+(defun transpose (input)
+  (let ((row-count (length input))
+        (col-count (length (aref input 0)))
+        result)
+    (setq result (make-matrix col-count row-count 1))
+    (dotimes (r row-count)
+      (dotimes (c col-count)
+        (aset (aref result c) r (aref (aref input r) c))))
+    result))
+
+(defun find-galaxies (arr)
+  (let ((row-count (length arr))
+        (col-count (length (aref arr 0)))
+	result)
+    (dotimes (r row-count)
+      (dotimes (c col-count)
+	(when (string= (aref (aref arr r) c) "#")
+	  (setq result (append result (list (list r c)))))))
+    result))
+
+(defun calc-distance (g1 g2 empty-rows empty-columns scale)
+  (let* ((r1 (nth 0 g1))
+	 (c1 (nth 1 g1))
+	 (r2 (nth 0 g2))
+	 (c2 (nth 1 g2))
+         (distance (+ (abs (- r1 r2)) (abs (- c1 c2)))))
+    (dolist (row empty-rows)
+      (when (and (> row (min r1 r2)) (< row (max r1 r2)))
+	(setq distance (+ distance scale))))
+    (dolist (column empty-columns)
+      (when (and (> column (min c1 c2)) (< column (max c1 c2)))
+	(setq distance (+ distance scale))))
+    distance))
+
+(defun find-empty-rows (input)
+  (mapcar (lambda (pair) (car (last pair)))
+	  (seq-filter (lambda (pair)
+		(let* ((unq (seq-uniq (nth 0 pair)))
+		       (len (length unq)))
+		  (and (= len 1) (string= "." (nth 0 unq)))))
+	      (seq-map-indexed (lambda (el index) (list el index)) input))))
+
+(defun solve (input scale)
+  (let* ((arr (convert-to-array input))
+	 (galaxies (find-galaxies arr))
+         (len (length galaxies))
+	 (empty-rows (find-empty-rows arr))
+	 (empty-columns (find-empty-rows (transpose arr)))
+         (result 0))
+    (dotimes (i (- len 1))
+      (dotimes (j (- len i 1))
+	(let* ((g1 (nth i galaxies))
+	       (g2 (nth (+ i j 1) galaxies))
+	       (dist (calc-distance g1 g2 empty-rows empty-columns scale)))
+	  (setq result (+ result dist)))))
+    result))
+
+(message "%s" (solve sample-input 1)) ; 374
+(message "%s" (solve sample-input 9)) ; 1030
+(message "%s" (solve sample-input 99)) ; 8410
+
+(message "%s" (solve input 1)) ; 9177603
+(message "%s" (solve input 999999)) ; 632003913611
