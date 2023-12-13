@@ -1,0 +1,98 @@
+(require 'seq)
+(require 'subr-x)
+
+(defun read-file (filename)
+  (with-temp-buffer
+    (insert-file-contents filename)
+    (buffer-string)))
+
+(defun print-list (input)
+  (let* ((row-count (length input))
+	 (column-count (length (nth 0 input))))
+    (dotimes (row row-count)
+      (dotimes (column column-count)
+	(let ((el (nth column (nth row input))))
+	  (princ (format "%s " el))))
+      (princ "\n"))))
+
+(defun print-array (input)
+  (let* ((row-count (length input))
+	 (column-count (length (aref input 0))))
+    (dotimes (row row-count)
+      (dotimes (column column-count)
+	(let ((el (aref (aref input row) column)))
+	  (princ (format "%s " el))))
+      (princ "\n"))))
+
+(defun convert-to-array (input)
+  (vconcat (mapcar (lambda (line) (vconcat line nil)) input) nil))
+
+(defun make-matrix (row col val)
+  (let ((result (make-vector row val)))
+    (dotimes (i row)
+      (aset result i (make-vector col val)))
+    result))
+
+(defun transpose (input)
+  (let ((row-count (length input))
+        (col-count (length (aref input 0)))
+        result)
+    (setq result (make-matrix col-count row-count 1))
+    (dotimes (r row-count)
+      (dotimes (c col-count)
+        (aset (aref result c) r (aref (aref input r) c))))
+    result))
+
+(defun parse-input (file)
+  (mapcar (lambda (note)
+	    (mapcar (lambda (line)
+		      (split-string line "" t))
+		    (split-string note "\n" t)))
+	  (split-string (read-file file) "\n\n" t)))
+
+(defun diff (l1 l2)
+  (let ((r 0))
+    (dotimes (i (length l1))
+      (when (not (string= (aref l1 i) (aref l2 i)))
+	(setq r (+ r 1))))
+    r))
+
+(defun is-valid (sn s i1 i2 note)
+  (let ((l1 (aref note i1))
+	(l2 (aref note i2)))
+    (if (or (equal l1 l2) (and (= s 0) (= (diff l1 l2) 1)))
+      (progn
+        (when (and (= s 0) (= (diff l1 l2) 1))
+	  (setq s 1))
+        (if (or (= i1 0) (= i2 (- (length note) 1)))
+          (= s sn)
+          (is-valid sn s (- i1 1) (+ i2 1) note)))
+      nil)))
+
+(defun find-lines (s note)
+  (let* ((lines nil))
+    (seq-map-indexed (lambda (line i)
+		       (when (<= i (- (length note) 2))
+			 (when (is-valid s 0 i (+ i 1) note)
+			   (push i lines)))) note)
+    lines))
+
+(defun solve (s file)
+  (seq-reduce (lambda (sum pair)
+		(let* ((h (nth 0 pair))
+		       (v (nth 1 pair)))
+		  (when h
+		    (setq sum (+ sum (* (+ (car h) 1) 100))))
+		  (when v
+		    (setq sum (+ sum (+ (car v) 1))))
+		  sum))
+	      (mapcar (lambda (note)
+			(let* ((arr (convert-to-array note))
+			       (t-arr (transpose arr)))
+			  (list (find-lines s arr) (find-lines s t-arr)))) (parse-input file)) 0)) ; 405 | 29130 | 400 | 33438
+
+(message "%s" (solve 0 "sample.txt"))
+(message "%s" (solve 0 "input.txt"))
+
+(message "%s" (solve 1 "sample.txt"))
+(message "%s" (solve 1 "input.txt"))
